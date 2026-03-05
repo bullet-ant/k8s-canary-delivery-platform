@@ -1,4 +1,4 @@
-# Architecture: LLM K8s Deployment Pipeline
+# Architecture: K8s Canary Delivery Platform
 
 This document describes the high-level architecture of the local, production-simulated Kubernetes platform used for CI and canary (progressive) delivery of a simple web application. The app shows **live request data**: the UI sends requests to the backend; responses indicate whether they were served by **stable (BLUE)** or **canary (YELLOW)**; the frontend displays this with visual cues (blue vs yellow).
 
@@ -109,7 +109,7 @@ This is what makes the demo work: the user sees a live stream of BLUE and YELLOW
 
 ## Application: Live Request Data with BLUE / YELLOW Cues
 
-The deployed app is a **simple web app** (frontend + backend), not an LLM:
+The deployed app is a **simple web app** (frontend + backend):
 
 - **Backend:** HTTP service that identifies itself per deployment—e.g. **BLUE** for stable, **YELLOW** for canary. Each response includes which variant served it. Exposes Prometheus metrics for canary analysis.
 - **Frontend:** Sends requests **automatically at 10 per second** to the backend and shows **live data** about which backend answered each request, with **visual cues** (blue vs yellow). The per-request view is a **flowing bubble stream**: dots/bubbles in a bounded area that flow across the screen (new ones appear, older ones drift out), not a single static line. A **summary bar + counts** (BLUE vs YELLOW totals and %) give the main readout. This lets an interviewer see live traffic and the canary split in real time.

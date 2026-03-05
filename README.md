@@ -1,4 +1,4 @@
-# LLM K8s Deployment Pipeline
+# K8s Canary Delivery Platform
 
 Local, production-simulated Kubernetes stack: **CI** (GitHub Actions + Trivy → GHCR) and **progressive delivery** (ArgoCD + Argo Rollouts canary) for a simple web app. The app shows **live request data**: requests hit the backend; responses from **stable (BLUE)** or **canary (YELLOW)** are shown with visual cues in the UI. Canary promote/rollback is driven by Prometheus metrics.
 
@@ -23,7 +23,7 @@ flowchart LR
 
 - **One push** → image build, Trivy scan, push to GHCR → ArgoCD sync → canary rollout.
 - **Metrics-based** automatic promote (or rollback) via Argo Rollouts + Prometheus.
-- **Multi-node kind** cluster; optional Grafana dashboard for canary vs stable.
+- **Multi-node kind** cluster with Nginx Ingress for traffic routing.
 
 Full design: **[Architecture](docs/ARCHITECTURE.md)**.
 
@@ -33,7 +33,7 @@ Full design: **[Architecture](docs/ARCHITECTURE.md)**.
 
 ```mermaid
 flowchart TB
-    root["llm-k8s-deployment-pipeline/"]
+    root["k8s-canary-delivery-platform/"]
     root --> github[".github/workflows/"]
     root --> apps["apps/"]
     root --> charts["charts/"]
@@ -41,18 +41,18 @@ flowchart TB
     root --> docs["docs/"]
     github --> w["CI workflow (build, Trivy, push)"]
     apps --> m["Web app (live BLUE/YELLOW demo)"]
-    charts --> h["Helm / K8s manifests"]
-    scripts --> b["Bootstrap cluster"]
+    charts --> h["Helm chart + Argo Rollouts manifests"]
+    scripts --> b["Bootstrap cluster + ArgoCD Application"]
     docs --> a["ARCHITECTURE.md"]
 ```
 
 | Path | Purpose |
 |------|--------|
-| `.github/workflows/` | GitHub Actions: build, Trivy, push to GHCR |
-| `apps/` | Web app: frontend + backend (BLUE stable / YELLOW canary), live request visuals and Prometheus metrics |
-| `charts/` | Helm chart(s) and Argo Rollouts manifests |
-| `scripts/` | Cluster bootstrap (kind create, optional tooling) |
-| `docs/` | Architecture and design (e.g. [ARCHITECTURE.md](docs/ARCHITECTURE.md)) |
+| `.github/workflows/ci.yml` | GitHub Actions: build image, Trivy scan, push to GHCR, update image tag in Helm values |
+| `apps/` | Web app: Express backend (BLUE/YELLOW variant + Prometheus `/metrics`) and static frontend (bubble stream UI) |
+| `charts/canary-demo/` | Helm chart: Argo Rollout, stable + canary Services, Nginx Ingress, AnalysisTemplate |
+| `scripts/` | `bootstrap.sh` (kind + platform install), `argocd-application.yaml` (GitOps app CR) |
+| `docs/` | [ARCHITECTURE.md](docs/ARCHITECTURE.md) — design, data flow, canary strategy |
 
 ---
 
@@ -61,57 +61,124 @@ flowchart TB
 - **Docker** (kind runs nodes as containers)
 - **kind** – [install](https://kind.sigs.k8s.io/docs/user/quick-start/#installation)
 - **kubectl** – [install](https://kubernetes.io/docs/tasks/tools/)
+- **Helm** – [install](https://helm.sh/docs/intro/install/)
 
 ---
 
-## Quick Start (Phase 1: Cluster)
+## Quick Start
 
-1. **Create the multi-node kind cluster**
+### 1. Bootstrap the cluster
 
-   ```bash
-   ./scripts/bootstrap.sh
-   ```
+Creates the kind cluster and installs Nginx Ingress, ArgoCD, Argo Rollouts, and Prometheus:
 
-   Or with explicit config:
+```bash
+./scripts/bootstrap.sh
+```
 
-   ```bash
-   kind create cluster --config kind-config.yaml --name llm-k8s
-   ```
+### 2. Deploy the ArgoCD Application
 
-2. **Verify**
+```bash
+kubectl apply -f scripts/argocd-application.yaml --context kind-canary-demo
+```
 
-   ```bash
-   kubectl cluster-info --context kind-llm-k8s
-   kubectl get nodes
-   ```
+ArgoCD will sync the Helm chart and create the Rollout, Services, Ingress, and AnalysisTemplate.
 
-3. **Run the web app (Phase 1)** — BLUE/YELLOW bubble demo:
+### 3. Access the UIs
 
-   ```bash
-   cd apps && npm install && npm start
-   ```
+**ArgoCD:**
+```bash
+# Get the admin password
+kubectl -n argocd get secret argocd-initial-admin-secret \
+  -o jsonpath='{.data.password}' --context kind-canary-demo | base64 -d
 
-   Open http://localhost:5000 (use `PORT=5001 npm start` if 5000 is in use). You should see the flowing bubble stream and summary bar updating at 10 req/s.
+# Port-forward the UI
+kubectl port-forward svc/argocd-server -n argocd 8080:443 --context kind-canary-demo
+```
+Open https://localhost:8080 (user: `admin`).
 
-Phase 2 will add ArgoCD, the app, and the canary rollout; the README will be updated with full runbook (push → observe canary in Argo Rollouts / Grafana).
+**Argo Rollouts dashboard:**
+```bash
+kubectl argo rollouts dashboard --context kind-canary-demo
+```
+Open http://localhost:3100.
+
+**Prometheus:**
+```bash
+kubectl port-forward svc/prometheus-server -n monitoring 9090:80 --context kind-canary-demo
+```
+Open http://localhost:9090.
+
+**App (via Ingress):**
+```bash
+# Add to /etc/hosts: 127.0.0.1 canary-demo.local
+curl http://canary-demo.local/api/request
+```
+Or port-forward the stable service:
+```bash
+kubectl port-forward svc/canary-demo-stable 5000:80 --context kind-canary-demo
+```
+Open http://localhost:5000 to see the live bubble stream UI.
+
+### 4. Trigger a canary rollout
+
+Tag a new version to trigger the CI pipeline:
+
+```bash
+git tag v2
+git push origin v2
+```
+
+This triggers GitHub Actions to build, scan, and push the new image, then update the image tag in `charts/canary-demo/values.yaml`. ArgoCD detects the change and Argo Rollouts begins the canary:
+
+1. **20% traffic** → canary pods (YELLOW) for 60s
+2. **Analysis** → Prometheus checks success rate (must be >= 95%)
+3. **50% traffic** → canary for 60s
+4. **Analysis** → second check
+5. **100%** → full promotion
+
+Watch it live:
+```bash
+kubectl argo rollouts get rollout canary-demo --watch --context kind-canary-demo
+```
+
+The app UI will show a mix of BLUE and YELLOW bubbles during the rollout, reflecting the real traffic split.
+
+### 5. Test rollback (optional)
+
+To simulate a failed canary, deploy a version that returns errors — the AnalysisTemplate will detect the drop in success rate and Argo Rollouts will automatically roll back.
 
 ---
 
-## Skills Demonstrated (Mapping to Role)
+## Local Development (no cluster needed)
+
+```bash
+cd apps && npm install && npm start
+```
+
+Open http://localhost:5000. The app defaults to `VARIANT=BLUE`. Override with:
+
+```bash
+VARIANT=YELLOW VERSION=v2 npm start
+```
+
+---
+
+## Skills Demonstrated
 
 | Area | Where in This Repo |
 |------|--------------------|
-| **Kubernetes (production-like)** | Multi-node kind cluster, workloads and rollouts |
-| **Docker / containers** | App image build in CI, image lifecycle (build → scan → push) |
-| **Helm** | Charts in `charts/` for app and rollout |
-| **CI/CD** | GitHub Actions: build → Trivy → GHCR |
-| **Deployment strategies** | Argo Rollouts canary; promote/rollback on metrics |
-| **Observability** | Prometheus + (optional) Grafana; metrics drive canary analysis |
-| **Production app on K8s** | Web app (BLUE/YELLOW) deployed and versioned; live canary visibility in UI |
+| **Kubernetes (production-like)** | Multi-node kind cluster, workloads, Ingress, Services |
+| **Docker / containers** | Dockerfile, image lifecycle (build → scan → push) |
+| **Helm** | `charts/canary-demo/` — Rollout, Services, Ingress, AnalysisTemplate |
+| **CI/CD** | `.github/workflows/ci.yml` — build, Trivy, GHCR, GitOps image tag update |
+| **Progressive delivery** | Argo Rollouts canary (20% → 50% → 100%) with Nginx traffic routing |
+| **GitOps** | ArgoCD syncs from repo; CI commits image tag updates |
+| **Observability** | Prometheus scrapes app `/metrics`; AnalysisTemplate drives promote/rollback |
+| **Traffic management** | Nginx Ingress Controller with weight-based canary splitting |
 
 ---
 
 ## Docs
 
-- **[Architecture](docs/ARCHITECTURE.md)** – High-level design, data flow, traffic routing, canary strategy, and Prometheus metrics (Mermaid diagrams).
+- **[Architecture](docs/ARCHITECTURE.md)** – High-level design, data flow, traffic routing, canary strategy, and Prometheus metrics.
 - **[Requirements](requirements.md)** – Overview, phases, and acceptance criteria.

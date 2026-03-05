@@ -1,0 +1,22 @@
+image:
+  repository: ghcr.io/bullet-ant/canary-demo
+  tag: "v1"
+  pullPolicy: IfNotPresent
+
+replicaCount: 3
+
+port: 5000
+
+stable:
+  variant: BLUE
+  version: v1
+
+canary:
+  variant: YELLOW
+  version: v2
+
+prometheus:
+  scrape: true
+
+ingress:
+  host: canary-demo.local

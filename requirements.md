@@ -1,4 +1,4 @@
-# Project Requirements: LLM K8s Deployment Pipeline
+# Project Requirements: K8s Canary Delivery Platform
 
 ## 1. Project Overview and Problem Statement
 
