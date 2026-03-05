@@ -1,0 +1,71 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1" />
+  <title>Canary Live Traffic</title>
+  <link rel="stylesheet" href="style.css" />
+</head>
+<body>
+  <header class="header">
+    <h1>Canary Live Traffic</h1>
+    <div class="controls">
+      <div class="legend">
+        <span class="legend-dot legend-blue"></span> STABLE
+        <span class="legend-dot legend-yellow"></span> CANARY
+      </div>
+      <div class="control-buttons">
+        <button id="btn-toggle" class="btn" title="Pause / Resume">Pause</button>
+        <select id="rate-select" class="btn" title="Requests per second">
+          <option value="1">1 req/s</option>
+          <option value="5">5 req/s</option>
+          <option value="10" selected>10 req/s</option>
+          <option value="20">20 req/s</option>
+        </select>
+      </div>
+    </div>
+  </header>
+
+  <main>
+    <!-- Flowing bubble stream -->
+    <section class="bubble-section">
+      <h2 class="section-label">Live Request Stream</h2>
+      <div id="bubble-stream" class="bubble-stream"></div>
+    </section>
+
+    <!-- Summary -->
+    <section class="summary-section">
+      <h2 class="section-label">Traffic Split</h2>
+
+      <div class="summary-row">
+        <div class="stat-card stat-blue">
+          <span class="stat-label">STABLE (BLUE)</span>
+          <span id="count-blue" class="stat-value">0</span>
+          <span id="pct-blue" class="stat-pct">0%</span>
+        </div>
+        <div class="stat-card stat-yellow">
+          <span class="stat-label">CANARY (YELLOW)</span>
+          <span id="count-yellow" class="stat-value">0</span>
+          <span id="pct-yellow" class="stat-pct">0%</span>
+        </div>
+        <div class="stat-card stat-total">
+          <span class="stat-label">TOTAL</span>
+          <span id="count-total" class="stat-value">0</span>
+          <span class="stat-pct">&nbsp;</span>
+        </div>
+      </div>
+
+      <div class="proportion-bar">
+        <div id="bar-blue" class="bar-seg bar-blue" style="width:50%"></div>
+        <div id="bar-yellow" class="bar-seg bar-yellow" style="width:50%"></div>
+      </div>
+      <div class="bar-labels">
+        <span id="bar-label-blue" class="bar-lbl bar-lbl-blue">BLUE 0%</span>
+        <span id="bar-label-yellow" class="bar-lbl bar-lbl-yellow">YELLOW 0%</span>
+      </div>
+    </section>
+  </main>
+
+  <script src="app.js"></script>
+</body>
+</html>

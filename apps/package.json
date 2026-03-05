@@ -1,0 +1,15 @@
+{
+  "name": "canary-demo-webapp",
+  "version": "1.0.0",
+  "description": "Live BLUE/YELLOW canary visibility demo",
+  "main": "server.js",
+  "scripts": {
+    "start": "node server.js"
+  },
+  "engines": {
+    "node": ">=18"
+  },
+  "dependencies": {
+    "express": "^4.21.0"
+  }
+}
