@@ -13,6 +13,7 @@
       <div class="legend">
         <span class="legend-dot legend-blue"></span> STABLE
         <span class="legend-dot legend-yellow"></span> CANARY
+        <span class="legend-dot legend-red"></span> ERROR
       </div>
       <div class="control-buttons">
         <button id="btn-toggle" class="btn" title="Pause / Resume">Pause</button>
@@ -27,6 +28,24 @@
   </header>
 
   <main>
+    <!-- Error injection -->
+    <section class="error-section">
+      <div class="error-header">
+        <h2 class="section-label">Error Injection</h2>
+        <div class="error-badge">
+          <span class="legend-dot legend-yellow"></span>
+          CANARY
+        </div>
+      </div>
+      <div class="error-body">
+        <div class="error-slider-row">
+          <input type="range" id="canary-error-rate" class="error-slider" min="0" max="100" value="0" step="5" />
+          <span id="canary-rate-val" class="error-val">0%</span>
+        </div>
+        <p class="error-hint">Rates above 5% will trigger an automatic rollback</p>
+      </div>
+    </section>
+
     <!-- Flowing bubble stream -->
     <section class="bubble-section">
       <h2 class="section-label">Live Request Stream</h2>
@@ -36,7 +55,7 @@
     <!-- Summary -->
     <section class="summary-section">
       <h2 class="section-label">Traffic Split</h2>
-
+      <div class="summary-body">
       <div class="summary-row">
         <div class="stat-card stat-blue">
           <span class="stat-label">STABLE (BLUE)</span>
@@ -47,6 +66,7 @@
           <span class="stat-label">CANARY (YELLOW)</span>
           <span id="count-yellow" class="stat-value">0</span>
           <span id="pct-yellow" class="stat-pct">0%</span>
+          <span id="err-yellow" class="stat-err">0 errors</span>
         </div>
         <div class="stat-card stat-total">
           <span class="stat-label">TOTAL</span>
@@ -62,6 +82,7 @@
       <div class="bar-labels">
         <span id="bar-label-blue" class="bar-lbl bar-lbl-blue">BLUE 0%</span>
         <span id="bar-label-yellow" class="bar-lbl bar-lbl-yellow">YELLOW 0%</span>
+      </div>
       </div>
     </section>
   </main>

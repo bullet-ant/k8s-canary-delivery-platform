@@ -16,26 +16,29 @@
   const STREAM_PADDING = 8;        // px padding inside stream box
 
   // ── DOM refs ─────────────────────────────────────────────────────
-  const streamEl       = document.getElementById('bubble-stream');
-  const countBlueEl    = document.getElementById('count-blue');
-  const countYellowEl  = document.getElementById('count-yellow');
-  const countTotalEl   = document.getElementById('count-total');
-  const pctBlueEl      = document.getElementById('pct-blue');
-  const pctYellowEl    = document.getElementById('pct-yellow');
-  const barBlueEl      = document.getElementById('bar-blue');
-  const barYellowEl    = document.getElementById('bar-yellow');
-  const barLabelBlueEl = document.getElementById('bar-label-blue');
+  const streamEl         = document.getElementById('bubble-stream');
+  const countBlueEl      = document.getElementById('count-blue');
+  const countYellowEl    = document.getElementById('count-yellow');
+  const countTotalEl     = document.getElementById('count-total');
+  const pctBlueEl        = document.getElementById('pct-blue');
+  const pctYellowEl      = document.getElementById('pct-yellow');
+  const errYellowEl      = document.getElementById('err-yellow');
+  const barBlueEl        = document.getElementById('bar-blue');
+  const barYellowEl      = document.getElementById('bar-yellow');
+  const barLabelBlueEl   = document.getElementById('bar-label-blue');
   const barLabelYellowEl = document.getElementById('bar-label-yellow');
-  const btnToggle      = document.getElementById('btn-toggle');
-  const rateSelect     = document.getElementById('rate-select');
+  const btnToggle        = document.getElementById('btn-toggle');
+  const rateSelect       = document.getElementById('rate-select');
+  const canarySlider     = document.getElementById('canary-error-rate');
+  const canaryRateVal    = document.getElementById('canary-rate-val');
 
   // ── State ────────────────────────────────────────────────────────
   let totalBlue = 0;
   let totalYellow = 0;
+  let errorYellow = 0;
   let running = true;
   let rps = DEFAULT_RPS;
   let intervalId = null;
-  let bubbleCount = 0;
 
   // ── Summary update ───────────────────────────────────────────────
   function updateSummary() {
@@ -48,6 +51,7 @@
     countTotalEl.textContent  = total;
     pctBlueEl.textContent     = pB + '%';
     pctYellowEl.textContent   = pY + '%';
+    errYellowEl.textContent   = errorYellow + ' error' + (errorYellow === 1 ? '' : 's');
 
     barBlueEl.style.width   = (total === 0 ? 50 : pB) + '%';
     barYellowEl.style.width = (total === 0 ? 50 : pY) + '%';
@@ -56,7 +60,7 @@
   }
 
   // ── Bubble management ────────────────────────────────────────────
-  function addBubble(variant) {
+  function addBubble(variant, isError) {
     // Enforce cap — remove oldest if needed
     while (streamEl.children.length >= MAX_BUBBLES) {
       streamEl.removeChild(streamEl.firstChild);
@@ -68,7 +72,7 @@
     const top = Math.random() * (maxTop - minTop) + minTop;
 
     const el = document.createElement('div');
-    el.className = 'bubble bubble--' + variant.toLowerCase();
+    el.className = 'bubble bubble--' + variant.toLowerCase() + (isError ? ' bubble--error' : '');
     el.style.top = top + 'px';
     el.style.right = '-' + BUBBLE_SIZE + 'px';  // start just outside right edge
 
@@ -85,14 +89,22 @@
 
   // ── Request tick ─────────────────────────────────────────────────
   function tick() {
-    fetch('/api/request')
-      .then(function (res) { return res.json(); })
-      .then(function (data) {
-        var v = data.variant;
-        if (v === 'BLUE')        totalBlue++;
-        else if (v === 'YELLOW') totalYellow++;
+    var cRate = canarySlider.value;
+    var url = '/api/request?canaryErrorRate=' + cRate;
+
+    fetch(url)
+      .then(function (res) {
+        return res.json().then(function (data) {
+          return { ok: res.ok, data: data };
+        });
+      })
+      .then(function (result) {
+        var v = result.data.variant;
+        var isError = result.data.error || !result.ok;
+        if (v === 'BLUE') { totalBlue++; }
+        else if (v === 'YELLOW') { totalYellow++; if (isError) errorYellow++; }
         else return;
-        addBubble(v);
+        addBubble(v, isError);
         updateSummary();
       })
       .catch(function () { /* silently skip network errors */ });
@@ -121,6 +133,12 @@
   rateSelect.addEventListener('change', function () {
     rps = parseInt(rateSelect.value, 10) || DEFAULT_RPS;
     if (running) startLoop();
+  });
+
+  canarySlider.addEventListener('input', function () {
+    var v = parseInt(canarySlider.value, 10);
+    canaryRateVal.textContent = v + '%';
+    canaryRateVal.style.color = v === 0 ? 'var(--text-muted)' : v < 20 ? 'var(--yellow-glow)' : 'var(--red-glow)';
   });
 
   // ── Boot ─────────────────────────────────────────────────────────

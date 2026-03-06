@@ -42,18 +42,25 @@ app.get('/metrics', async (_req, res) => {
 app.use(express.static(path.join(__dirname, 'public')));
 
 // --- API endpoint ---
-app.get('/api/request', (_req, res) => {
+app.get('/api/request', (req, res) => {
   const end = httpRequestDuration.startTimer({ method: 'GET', path: '/api/request', variant: VARIANT });
   requestCounter += 1;
-  res.json({
+
+  const errorRate = VARIANT === 'BLUE'
+    ? parseFloat(req.query.stableErrorRate) || 0
+    : parseFloat(req.query.canaryErrorRate) || 0;
+  const isError = Math.random() * 100 < errorRate;
+  const status = isError ? 500 : 200;
+
+  res.status(status).json({
     variant: VARIANT,
     version: VERSION,
     pod: process.env.HOSTNAME || 'local',
     timestamp: new Date().toISOString(),
     request_id: requestCounter,
+    error: isError,
   });
-  const status = String(res.statusCode);
-  httpRequestsTotal.inc({ method: 'GET', path: '/api/request', status, variant: VARIANT });
+  httpRequestsTotal.inc({ method: 'GET', path: '/api/request', status: String(status), variant: VARIANT });
   end();
 });
 
