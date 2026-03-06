@@ -40,10 +40,11 @@ jobs:
           username: ${{ github.actor }}
           password: ${{ secrets.GITHUB_TOKEN }}
 
-      - name: Build image
+      - name: Build image locally for scanning
         uses: docker/build-push-action@v6
         with:
           context: apps
+          platforms: linux/amd64
           load: true
           tags: ${{ env.IMAGE }}:${{ steps.tag.outputs.version }}
 
@@ -52,13 +53,14 @@ jobs:
         with:
           image-ref: ${{ env.IMAGE }}:${{ steps.tag.outputs.version }}
           format: table
-          exit-code: 0
+          exit-code: 1
           severity: CRITICAL,HIGH
 
-      - name: Push image to GHCR
+      - name: Build and push multi-platform image to GHCR
         uses: docker/build-push-action@v6
         with:
           context: apps
+          platforms: linux/amd64,linux/arm64
           push: true
           tags: |
             ${{ env.IMAGE }}:${{ steps.tag.outputs.version }}
