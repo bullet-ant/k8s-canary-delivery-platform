@@ -208,7 +208,3 @@ sequenceDiagram
 | **Progressive delivery** | Argo Rollouts canary with Prometheus-based analysis | No manual promote for the happy path. 20% → 50% → 100% with analysis gates. |
 | **App metrics** | `prom-client` with `http_requests_total` and `http_request_duration_seconds` | Industry-standard metric names; directly queryable by AnalysisTemplate. |
 | **Visibility** | App UI (version-colored bubbles, auto-discovered), Argo Rollouts UI, optional Grafana | Multiple layers of observability for the demo. |
-
----
-
-*This file is intended to be visible on the GitHub repo so reviewers and interviewers can quickly understand the system.*
