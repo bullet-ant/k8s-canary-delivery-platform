@@ -1,6 +1,6 @@
 image:
   repository: ghcr.io/bullet-ant/canary-demo
-  tag: "v3.2.0"
+  tag: "v0.0.1"
   pullPolicy: IfNotPresent
 
 replicaCount: 3
