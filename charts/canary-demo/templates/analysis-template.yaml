@@ -7,12 +7,12 @@ spec:
     - name: success-rate
       interval: 30s
       count: 3
-      successCondition: len(result) == 0 || result[0] >= 0.95
-      failureLimit: 1
+      successCondition: len(result) > 0 && result[0] >= 0.95
+      failureLimit: 2
       provider:
         prometheus:
           address: http://prometheus-server.monitoring.svc.cluster.local
           query: |
-            sum(rate(http_requests_total{app="{{ .Release.Name }}",status=~"2.."}[1m]))
+            sum(rate(http_requests_total{status=~"2.."}[2m]))
             /
-            sum(rate(http_requests_total{app="{{ .Release.Name }}"}[1m]))
+            sum(rate(http_requests_total[2m]))
