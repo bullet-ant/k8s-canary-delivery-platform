@@ -4,7 +4,7 @@
 
 **Problem:** A candidate needs to demonstrate Senior DevOps skills (Kubernetes, CI/CD, progressive delivery, observability, GenAI-ready platforms) in a way an interviewer can quickly validate—without relying only on a resume.
 
-**Solution:** A local, production-simulated Kubernetes platform that runs a full Continuous Integration and Progressive Delivery (Canary) pipeline. One push to the repo triggers: container build and Trivy vulnerability scanning (GitHub Actions), image publish to GHCR, and zero-downtime canary deployment (ArgoCD + Argo Rollouts) of a simple web application on a multi-node kind cluster. The deployed app is a **live-demo web app**: the frontend sends requests to the backend; each response identifies whether it was served by the **stable** (e.g. BLUE) or **canary** (e.g. YELLOW) deployment, and the UI shows this as live data with **visual cues** (blue vs yellow). Traffic routing and automatic promote/rollback are driven by Prometheus metrics, with optional Grafana dashboards for visual proof. Supporting documentation (e.g. ARCHITECTURE.md) and a clear “skills demonstrated” mapping make the demo interview-friendly.
+**Solution:** A local, production-simulated Kubernetes platform that runs a full Continuous Integration and Progressive Delivery (Canary) pipeline. One push to the repo triggers: container build and Trivy vulnerability scanning (GitHub Actions), image publish to GHCR, and zero-downtime canary deployment (ArgoCD + Argo Rollouts) of a simple web application on a multi-node kind cluster. The deployed app is a **live-demo web app**: the frontend sends requests to the backend; each response includes the `version` of the pod that served it, and the UI shows this as live data with **visual cues** (each version gets a color, auto-assigned on first sight). Traffic routing and automatic promote/rollback are driven by Prometheus metrics, with optional Grafana dashboards for visual proof. Supporting documentation (e.g. ARCHITECTURE.md) and a clear “skills demonstrated” mapping make the demo interview-friendly.
 
 ---
 
@@ -34,8 +34,8 @@
   - Promotion/rollback driven by Prometheus metrics (e.g. success rate, latency) via AnalysisTemplates.
 
 - **Application (live-demo web app)**  
-  - **Backend:** HTTP service that identifies itself by deployment (e.g. stable = BLUE, canary = YELLOW). Each response indicates which variant served the request. Exposes Prometheus metrics (request count, latency, success) for canary analysis.  
-  - **Frontend:** Simple web UI that **sends requests automatically at 10 per second** to the backend and displays **live data** about which backend served each response, with **visual cues** (e.g. blue for stable, yellow for canary). The per-request view is a **flowing bubble stream**: dots/bubbles in a bounded area that flow across the screen (new ones appear, older ones drift out) rather than a single static line—so an interviewer sees live traffic and the canary split in real time. A **summary bar + counts** (BLUE vs YELLOW totals and %) remain the main readout.
+  - **Backend:** HTTP service that identifies itself by `VERSION` env var (e.g. `v1`, `v2`) and `ROLE` (`stable`/`canary`). Each response includes the `version` field. Exposes Prometheus metrics (request count, latency, success) for canary analysis.
+  - **Frontend:** Simple web UI that **sends requests automatically at 10 per second** to the backend and displays **live data** about which version served each response, with **visual cues** (each version is assigned a color automatically on first sight). The per-request view is a **flowing bubble stream**: dots/bubbles in a bounded area that flow across the screen (new ones appear, older ones drift out) rather than a single static line—so an interviewer sees live traffic and the canary split in real time. A **summary bar + counts** (per-version totals and %) remain the main readout.
 
 - **Observability**  
   - Prometheus scrapes app and/or ingress metrics.  
@@ -43,7 +43,7 @@
 
 - **Documentation and Interview Readiness**  
   - `ARCHITECTURE.md` in the repo (e.g. under `docs/` or root) with high-level design and a Mermaid diagram, visible on GitHub.  
-  - README with how to run the cluster, run the pipeline, and observe canary (app UI blue/yellow cues, Argo Rollouts UI, optional Grafana).  
+  - README with how to run the cluster, run the pipeline, and observe canary (app UI version-colored bubbles, Argo Rollouts UI, optional Grafana).
   - Optional: “Skills demonstrated” section mapping job requirements (K8s, Docker, Helm, CI/CD, canary, observability) to parts of this project.
 
 ---
@@ -81,7 +81,7 @@
 
 1. GitHub Action builds container image and runs Trivy; image is pushed to GHCR.
 2. Multi-node kind cluster can be created and ArgoCD + Argo Rollouts installed.
-3. Web app (backend + frontend) is deployed via Argo Rollouts canary; canary and stable receive traffic according to rollout steps; UI shows live request data with BLUE (stable) / YELLOW (canary) visual cues.
+3. Web app (backend + frontend) is deployed via Argo Rollouts canary; canary and stable receive traffic according to rollout steps; UI shows live request data with version-colored bubbles (color auto-assigned per version).
 4. Prometheus scrapes metrics used by Rollout AnalysisTemplate; successful analysis promotes canary; failed analysis triggers rollback.
 5. `ARCHITECTURE.md` exists in the repo with at least one Mermaid diagram and is linked from README.
 6. README explains how to run the pipeline and observe the canary (and optional Grafana).
@@ -95,13 +95,13 @@
 - Define repo layout (e.g. `apps/`, `charts/`, `.github/workflows/`, `docs/`).
 - Create multi-node kind cluster config and bootstrap script.
 - Document ARCHITECTURE (high-level design + data flow) in `docs/ARCHITECTURE.md` (or root `ARCHITECTURE.md`) with Mermaid diagrams; link from README.
-- **Web app UI:** Develop the demo frontend: flowing bubble stream in a bounded area (new bubbles appear, older ones drift out), summary bar + counts (BLUE vs YELLOW totals and %), automatic 10 requests per second. Include a minimal backend or stub that returns which variant (BLUE/YELLOW) served each request so the UI can be built and tested locally; full backend (Prometheus metrics, deployment identity) and K8s deployment remain in Phase 2.
+- **Web app UI:** Develop the demo frontend: flowing bubble stream in a bounded area (new bubbles appear, older ones drift out), summary bar + counts (per-version totals and %), automatic 10 requests per second. Include a minimal backend or stub that returns the `version` of the pod so the UI can be built and tested locally; full backend (Prometheus metrics, deployment identity) and K8s deployment remain in Phase 2.
 - Optional: add README “Skills demonstrated” section mapping to job requirements.
 
 ### Phase 2: Core Build
 
 - **CI:** GitHub Actions workflow: build image, run Trivy, push to GHCR (use repo secrets for auth).
-- **App:** Backend HTTP service that identifies as BLUE (stable) or YELLOW (canary), exposes Prometheus metrics; frontend web UI that sends requests and shows live data with blue/yellow visual cues for which backend responded.
+- **App:** Backend HTTP service that identifies itself via `VERSION` and `ROLE` env vars, exposes Prometheus metrics; frontend web UI that sends requests and shows live data with version-colored bubbles (color auto-assigned per version).
 - **K8s:** Helm chart (or plain manifests) for the app; integrate with Argo Rollouts (Rollout, AnalysisTemplate, Service/Ingress or traffic manager).
 - **GitOps:** ArgoCD Application(s) pointing at this repo; Rollout uses image from GHCR.
 - **Observability:** Prometheus installed and configured to scrape the app (and any ingress); AnalysisTemplate uses Prometheus provider.
@@ -137,7 +137,7 @@ flowchart TB
         end
         subgraph Apps["Workloads"]
             Rollout["Argo Rollouts\n(Canary)"]
-            App["Web App\n(BLUE stable / YELLOW canary)"]
+            App["Web App\n(VERSION=v1 stable / VERSION=v2 canary)"]
             Rollout --> App
         end
         subgraph Observability["Observability"]
@@ -186,5 +186,5 @@ sequenceDiagram
 
 ## 10. References
 
-- **Stakeholder goal:** Validate Senior DevOps skills (Kubernetes, Docker, Helm, CI/CD, canary, observability) for a role such as Teradata Senior DevOps Engineer. **App:** Simple web app with live request data; BLUE = stable, YELLOW = canary (visual cues in UI).
+- **Stakeholder goal:** Validate Senior DevOps skills (Kubernetes, Docker, Helm, CI/CD, canary, observability) for a role such as Teradata Senior DevOps Engineer. **App:** Simple web app with live request data; each deployed version gets a color automatically — no hardcoded color names.
 - **Registry:** GHCR. **Scanning:** Trivy in GitHub Actions. **Success:** One push → build → scan → deploy canary → auto promote/rollback on metrics, visible in Argo Rollouts (and optional Grafana). **Timeline:** ASAP.

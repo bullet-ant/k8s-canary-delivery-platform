@@ -1,6 +1,6 @@
 # Architecture: K8s Canary Delivery Platform
 
-This document describes the high-level architecture of the local, production-simulated Kubernetes platform used for CI and canary (progressive) delivery of a simple web application. The app shows **live request data**: the UI sends requests to the backend; responses indicate whether they were served by **stable (BLUE)** or **canary (YELLOW)**; the frontend displays this with visual cues (blue vs yellow).
+This document describes the high-level architecture of the local, production-simulated Kubernetes platform used for CI and canary (progressive) delivery of a simple web application. The app shows **live request data**: the UI sends requests to the backend; responses include the `version` of the pod that answered; the frontend assigns each version a color automatically and displays this with visual cues (bubbles, stat cards, proportion bar).
 
 ## Purpose
 
@@ -33,8 +33,8 @@ flowchart TB
         end
         subgraph Apps["Workloads"]
             Rollout["Argo Rollouts\n(Canary)"]
-            StablePods["Stable Pods\n(BLUE, v1)"]
-            CanaryPods["Canary Pods\n(YELLOW, v2)"]
+            StablePods["Stable Pods\n(ROLE=stable, VERSION=v1)"]
+            CanaryPods["Canary Pods\n(ROLE=canary, VERSION=v2)"]
             StableSvc["stable-service"]
             CanarySvc["canary-service"]
             Rollout --> StablePods
@@ -69,7 +69,7 @@ flowchart TB
 | **Nginx Ingress Controller** | Traffic manager for Argo Rollouts. Routes requests to stable and canary Services based on configured weights (e.g. 80/20). Lightweight and well-supported on kind. |
 | **ArgoCD** | GitOps: watches this repo for changes to manifests/Helm values; syncs application state to the cluster when the image tag is updated by CI. |
 | **Argo Rollouts** | Canary rollout controller: manages canary/stable ReplicaSets, configures Nginx Ingress annotations for traffic weight, runs AnalysisTemplates against Prometheus to decide promote vs rollback. |
-| **Web App** | Backend: Express HTTP service that returns its variant (BLUE or YELLOW) based on `VARIANT` env var, exposes Prometheus metrics via `/metrics`. Frontend: static UI that sends requests and shows live data with blue/yellow visual cues. Both served from the same container. |
+| **Web App** | Backend: Express HTTP service that returns its `VERSION` (e.g. `v1`, `v2`) and `ROLE` (`stable`/`canary`), exposes Prometheus metrics via `/metrics`. Frontend: static UI that sends requests and shows live data — each version is assigned a color automatically. Both served from the same container. |
 | **Prometheus** | Scrapes app metrics (`/metrics` endpoint); queried by Argo Rollouts AnalysisTemplate to decide promote vs rollback. |
 | **Grafana** (optional) | One dashboard with 1–2 charts (e.g. canary vs stable request rate, success rate) for visual validation. |
 
@@ -102,17 +102,17 @@ The frontend and backend are served from the same container. When a user opens t
 1. Browser hits the Nginx Ingress, which routes to either a stable or canary pod.
 2. That pod serves the static frontend (`index.html`, `app.js`, `style.css`).
 3. The frontend JS fires 10 requests/sec to `/api/request` via the same Ingress.
-4. **Each API request is independently routed** by Nginx based on the canary weight — so even though the frontend was served by one pod, API responses come from a mix of stable (BLUE) and canary (YELLOW) pods.
-5. The UI displays each response as a colored bubble and updates the summary counts.
+4. **Each API request is independently routed** by Nginx based on the canary weight — so even though the frontend was served by one pod, API responses come from a mix of stable and canary pods running different versions.
+5. The UI reads the `version` field from each response, assigns it a color on first sight, displays it as a colored bubble, and updates the summary counts.
 
-This is what makes the demo work: the user sees a live stream of BLUE and YELLOW responses reflecting the actual traffic split configured by Argo Rollouts.
+This is what makes the demo work: the user sees a live stream of version-colored responses reflecting the actual traffic split configured by Argo Rollouts.
 
-## Application: Live Request Data with BLUE / YELLOW Cues
+## Application: Live Request Data with Version-Based Visual Cues
 
 The deployed app is a **simple web app** (frontend + backend):
 
-- **Backend:** HTTP service that identifies itself per deployment—e.g. **BLUE** for stable, **YELLOW** for canary. Each response includes which variant served it. Exposes Prometheus metrics for canary analysis.
-- **Frontend:** Sends requests **automatically at 10 per second** to the backend and shows **live data** about which backend answered each request, with **visual cues** (blue vs yellow). The per-request view is a **flowing bubble stream**: dots/bubbles in a bounded area that flow across the screen (new ones appear, older ones drift out), not a single static line. A **summary bar + counts** (BLUE vs YELLOW totals and %) give the main readout. This lets an interviewer see live traffic and the canary split in real time.
+- **Backend:** HTTP service that identifies itself by `VERSION` env var (e.g. `v1`, `v2`) and `ROLE` (`stable`/`canary`). Each response includes the `version` field. Exposes Prometheus metrics for canary analysis.
+- **Frontend:** Sends requests **automatically at 10 per second** to the backend and shows **live data** about which version answered each request. Each version is assigned a color automatically on first sight — no hardcoded color names. The per-request view is a **flowing bubble stream**: dots/bubbles in a bounded area that flow across the screen. A **summary bar + counts** (per-version totals and %) give the main readout. This lets an interviewer see live traffic and the canary split in real time.
 
 ## Prometheus Metrics
 
@@ -120,13 +120,14 @@ The backend exposes a `/metrics` endpoint (using `prom-client`) with the followi
 
 | Metric | Type | Labels | Purpose |
 |--------|------|--------|---------|
-| `http_requests_total` | Counter | `method`, `path`, `status`, `variant` | Total requests served; used for success-rate analysis. |
-| `http_request_duration_seconds` | Histogram | `method`, `path`, `variant` | Request latency distribution; used for latency-based analysis. |
+| `http_requests_total` | Counter | `method`, `path`, `status`, `version` | Total requests served; used for success-rate analysis. |
+| `http_request_duration_seconds` | Histogram | `method`, `path`, `version` | Request latency distribution; used for latency-based analysis. |
 
 The AnalysisTemplate queries Prometheus to evaluate canary health. Example analysis queries:
 
-- **Success rate:** `sum(rate(http_requests_total{variant="YELLOW",status=~"2.."}[1m])) / sum(rate(http_requests_total{variant="YELLOW"}[1m]))` — must be > 0.95.
-- **Latency P99:** `histogram_quantile(0.99, sum(rate(http_request_duration_seconds_bucket{variant="YELLOW"}[1m])) by (le))` — must be < 500ms.
+- **Success rate (all pods):** `sum(rate(http_requests_total{app="canary-demo",status=~"2.."}[1m])) / sum(rate(http_requests_total{app="canary-demo"}[1m]))` — must be > 0.95.
+- **Success rate (canary only):** `sum(rate(http_requests_total{version="v2",status=~"2.."}[1m])) / sum(rate(http_requests_total{version="v2"}[1m]))` — must be > 0.95.
+- **Latency P99:** `histogram_quantile(0.99, sum(rate(http_request_duration_seconds_bucket{version="v2"}[1m])) by (le))` — must be < 500ms.
 
 ## Canary Rollout Strategy
 
@@ -146,9 +147,6 @@ strategy:
       - analysis:
           templates:
             - templateName: canary-success-rate
-          args:
-            - name: variant
-              value: YELLOW
       - setWeight: 50
       - pause: { duration: 60s }       # observe 50% canary traffic
       - analysis:
@@ -171,8 +169,8 @@ sequenceDiagram
     participant ArgoCD
     participant Rollouts as Argo Rollouts
     participant Nginx as Nginx Ingress
-    participant Stable as Stable Pods (BLUE)
-    participant Canary as Canary Pods (YELLOW)
+    participant Stable as Stable Pods (v1, ROLE=stable)
+    participant Canary as Canary Pods (v2, ROLE=canary)
     participant Prom as Prometheus
 
     Dev->>GitHub: git push (app change)
@@ -181,7 +179,7 @@ sequenceDiagram
     GitHub->>Repo: Update image tag in Helm values
     ArgoCD->>Repo: Detect change (poll/webhook)
     ArgoCD->>Rollouts: Sync — new image in Rollout spec
-    Rollouts->>Canary: Create canary ReplicaSet (YELLOW, v2)
+    Rollouts->>Canary: Create canary ReplicaSet (VERSION=v2, ROLE=canary)
     Rollouts->>Nginx: Set canary-weight: 20%
     Note over Nginx: 80% → Stable, 20% → Canary
     Canary->>Prom: Expose /metrics
@@ -209,7 +207,7 @@ sequenceDiagram
 | **Image update flow** | CI commits updated tag to repo → ArgoCD syncs | Standard GitOps; repo stays the single source of truth. |
 | **Progressive delivery** | Argo Rollouts canary with Prometheus-based analysis | No manual promote for the happy path. 20% → 50% → 100% with analysis gates. |
 | **App metrics** | `prom-client` with `http_requests_total` and `http_request_duration_seconds` | Industry-standard metric names; directly queryable by AnalysisTemplate. |
-| **Visibility** | App UI (BLUE/YELLOW bubbles), Argo Rollouts UI, optional Grafana | Multiple layers of observability for the demo. |
+| **Visibility** | App UI (version-colored bubbles, auto-discovered), Argo Rollouts UI, optional Grafana | Multiple layers of observability for the demo. |
 
 ---
 

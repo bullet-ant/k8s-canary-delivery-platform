@@ -1,7 +1,7 @@
 {
   "name": "canary-demo-webapp",
   "version": "2.0.0",
-  "description": "Live BLUE/YELLOW canary visibility demo",
+  "description": "Live canary traffic visibility demo (version-based, dynamic colors)",
   "main": "server.js",
   "scripts": {
     "start": "node server.js"

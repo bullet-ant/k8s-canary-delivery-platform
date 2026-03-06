@@ -1,6 +1,6 @@
 # K8s Canary Delivery Platform
 
-Local, production-simulated Kubernetes stack: **CI** (GitHub Actions + Trivy → GHCR) and **progressive delivery** (ArgoCD + Argo Rollouts canary) for a simple web app. The app shows **live request data**: requests hit the backend; responses from **stable (BLUE)** or **canary (YELLOW)** are shown with visual cues in the UI. Canary promote/rollback is driven by Prometheus metrics.
+Local, production-simulated Kubernetes stack: **CI** (GitHub Actions + Trivy → GHCR) and **progressive delivery** (ArgoCD + Argo Rollouts canary) for a simple web app. The app shows **live request data**: requests hit the backend; responses from **stable** or **canary** pods are shown with visual cues in the UI — each version gets its own color, discovered automatically. Canary promote/rollback is driven by Prometheus metrics.
 
 ---
 
@@ -40,7 +40,7 @@ flowchart TB
     root --> scripts["scripts/"]
     root --> docs["docs/"]
     github --> w["CI workflow (build, Trivy, push)"]
-    apps --> m["Web app (live BLUE/YELLOW demo)"]
+    apps --> m["Web app (live canary traffic demo)"]
     charts --> h["Helm chart + Argo Rollouts manifests"]
     scripts --> b["Bootstrap cluster + ArgoCD Application"]
     docs --> a["ARCHITECTURE.md"]
@@ -49,7 +49,7 @@ flowchart TB
 | Path | Purpose |
 |------|--------|
 | `.github/workflows/ci.yml` | GitHub Actions: build image, Trivy scan, push to GHCR, update image tag in Helm values |
-| `apps/` | Web app: Express backend (BLUE/YELLOW variant + Prometheus `/metrics`) and static frontend (bubble stream UI) |
+| `apps/` | Web app: Express backend (VERSION + ROLE env vars + Prometheus `/metrics`) and static frontend (bubble stream UI) |
 | `charts/canary-demo/` | Helm chart: Argo Rollout, stable + canary Services, Nginx Ingress, AnalysisTemplate |
 | `scripts/` | `bootstrap.sh` (kind + platform install), `argocd-application.yaml` (GitOps app CR) |
 | `docs/` | [ARCHITECTURE.md](docs/ARCHITECTURE.md) — design, data flow, canary strategy |
@@ -130,7 +130,7 @@ git push origin v2
 
 This triggers GitHub Actions to build, scan, and push the new image, then update the image tag in `charts/canary-demo/values.yaml`. ArgoCD detects the change and Argo Rollouts begins the canary:
 
-1. **20% traffic** → canary pods (YELLOW) for 60s
+1. **20% traffic** → canary pods (new version) for 60s
 2. **Analysis** → Prometheus checks success rate (must be >= 95%)
 3. **50% traffic** → canary for 60s
 4. **Analysis** → second check
@@ -141,7 +141,7 @@ Watch it live:
 kubectl argo rollouts get rollout canary-demo --watch --context kind-canary-demo
 ```
 
-The app UI will show a mix of BLUE and YELLOW bubbles during the rollout, reflecting the real traffic split.
+The app UI will show a mix of colored bubbles during the rollout (one color per version), reflecting the real traffic split.
 
 ### 5. Test rollback (optional)
 
@@ -155,10 +155,17 @@ To simulate a failed canary, deploy a version that returns errors — the Analys
 cd apps && npm install && npm start
 ```
 
-Open http://localhost:5000. The app defaults to `VARIANT=BLUE`. Override with:
+Open http://localhost:5000. The app defaults to `VERSION=v2 ROLE=canary`. Override with:
 
 ```bash
-VARIANT=YELLOW VERSION=v2 npm start
+VERSION=v1 ROLE=stable npm start
+```
+
+Run two instances on different ports to simulate a live canary split:
+
+```bash
+VERSION=v1 ROLE=stable  PORT=5001 npm start &
+VERSION=v2 ROLE=canary  PORT=5002 npm start &
 ```
 
 ---

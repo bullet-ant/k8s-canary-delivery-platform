@@ -1,8 +1,13 @@
 /**
  * Canary demo web app — serves static frontend + /api/request endpoint.
  *
- * Deploy with VARIANT=BLUE (stable/v1) or VARIANT=YELLOW (canary/v2).
- * The K8s deployments set this env var so each pod returns its own color.
+ * Deploy with:
+ *   VERSION=v1  ROLE=stable  (stable pods)
+ *   VERSION=v2  ROLE=canary  (canary pods)
+ *
+ * VERSION is the identity shown in the UI and used as a Prometheus label.
+ * ROLE controls error-injection routing (stable vs canary slider).
+ * Argo Rollouts injects ROLE via pod labels (Downward API).
  */
 
 const express = require('express');
@@ -11,22 +16,22 @@ const { register, Counter, Histogram, collectDefaultMetrics } = require('prom-cl
 
 const app = express();
 const PORT = process.env.PORT || 5000;
-const VARIANT = process.env.VARIANT || 'YELLOW';
 const VERSION = process.env.VERSION || 'v2';
+const ROLE    = process.env.ROLE    || 'canary';  // 'stable' | 'canary'
 
 // --- Prometheus metrics ---
-collectDefaultMetrics({ labels: { variant: VARIANT } });
+collectDefaultMetrics({ labels: { version: VERSION } });
 
 const httpRequestsTotal = new Counter({
   name: 'http_requests_total',
   help: 'Total HTTP requests',
-  labelNames: ['method', 'path', 'status', 'variant'],
+  labelNames: ['method', 'path', 'status', 'version'],
 });
 
 const httpRequestDuration = new Histogram({
   name: 'http_request_duration_seconds',
   help: 'HTTP request duration in seconds',
-  labelNames: ['method', 'path', 'variant'],
+  labelNames: ['method', 'path', 'version'],
   buckets: [0.005, 0.01, 0.025, 0.05, 0.1, 0.25, 0.5, 1],
 });
 
@@ -43,24 +48,24 @@ app.use(express.static(path.join(__dirname, 'public')));
 
 // --- API endpoint ---
 app.get('/api/request', (req, res) => {
-  const end = httpRequestDuration.startTimer({ method: 'GET', path: '/api/request', variant: VARIANT });
+  const end = httpRequestDuration.startTimer({ method: 'GET', path: '/api/request', version: VERSION });
   requestCounter += 1;
 
-  const errorRate = VARIANT === 'BLUE'
+  const errorRate = ROLE === 'stable'
     ? parseFloat(req.query.stableErrorRate) || 0
     : parseFloat(req.query.canaryErrorRate) || 0;
   const isError = Math.random() * 100 < errorRate;
   const status = isError ? 500 : 200;
 
   res.status(status).json({
-    variant: VARIANT,
     version: VERSION,
+    role: ROLE,
     pod: process.env.HOSTNAME || 'local',
     timestamp: new Date().toISOString(),
     request_id: requestCounter,
     error: isError,
   });
-  httpRequestsTotal.inc({ method: 'GET', path: '/api/request', status: String(status), variant: VARIANT });
+  httpRequestsTotal.inc({ method: 'GET', path: '/api/request', status: String(status), version: VERSION });
   end();
 });
 
@@ -75,5 +80,5 @@ app.get('*', (_req, res) => {
 });
 
 app.listen(PORT, () => {
-  console.log(`Canary demo [${VERSION}/${VARIANT}] listening on http://localhost:${PORT}`);
+  console.log(`Canary demo [${VERSION}/${ROLE}] listening on http://localhost:${PORT}`);
 });

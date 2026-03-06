@@ -28,12 +28,12 @@ spec:
           env:
             - name: PORT
               value: "{{ .Values.port }}"
-            - name: VARIANT
-              valueFrom:
-                fieldRef:
-                  fieldPath: metadata.labels['variant']
             - name: VERSION
               value: "{{ .Values.image.tag }}"
+            - name: ROLE
+              valueFrom:
+                fieldRef:
+                  fieldPath: metadata.labels['role']
           readinessProbe:
             httpGet:
               path: /health
@@ -50,10 +50,10 @@ spec:
     canary:
       stableMetadata:
         labels:
-          variant: {{ .Values.stable.variant }}
+          role: {{ .Values.stable.role }}
       canaryMetadata:
         labels:
-          variant: {{ .Values.canary.variant }}
+          role: {{ .Values.canary.role }}
       canaryService: {{ .Release.Name }}-canary
       stableService: {{ .Release.Name }}-stable
       trafficRouting:

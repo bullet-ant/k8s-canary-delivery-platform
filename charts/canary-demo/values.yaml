@@ -8,12 +8,10 @@ replicaCount: 3
 port: 5000
 
 stable:
-  variant: BLUE
-  version: v1
+  role: stable
 
 canary:
-  variant: YELLOW
-  version: v2
+  role: canary
 
 prometheus:
   scrape: true

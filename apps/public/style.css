@@ -71,9 +71,8 @@ body {
   border-radius: 50%;
   display: inline-block;
 }
-.legend-dot.legend-blue   { background: var(--blue-glow); box-shadow: 0 0 6px var(--blue); }
-.legend-dot.legend-yellow { background: var(--yellow-glow); box-shadow: 0 0 6px var(--yellow); }
-.legend-dot.legend-red    { background: var(--red-glow); box-shadow: 0 0 6px var(--red); }
+/* Variant legend dots use inline styles set by JS; only ERROR dot is static */
+.legend-dot.legend-error  { background: var(--red-glow); box-shadow: 0 0 6px var(--red); }
 
 .control-buttons {
   display: flex;
@@ -118,35 +117,13 @@ main {
   margin-bottom: 0.5rem;
 }
 
-/* ── Error injection ────────────────────────────────────────────── */
-
-.error-section { /* no box — label sits above like bubble-section */ }
-
-.error-header {
-  display: flex;
-  align-items: center;
-  justify-content: space-between;
-  gap: 1rem;
-  margin-bottom: 0.5rem;
+.section-label-note {
+  font-weight: 400;
+  opacity: 0.6;
+  letter-spacing: 0.02em;
 }
 
-.error-header .section-label {
-  margin-bottom: 0;
-}
-
-.error-body {
-  background: var(--surface);
-  border: 1px solid var(--border);
-  border-radius: var(--radius);
-  padding: 0.85rem 1.25rem 1rem;
-}
-
-.error-hint {
-  font-size: 0.72rem;
-  color: var(--text-muted);
-  margin-top: 0.5rem;
-  line-height: 1.4;
-}
+/* ── Error injection badge (in header) ─────────────────────────── */
 
 .error-badge {
   display: flex;
@@ -156,35 +133,10 @@ main {
   font-weight: 700;
   letter-spacing: 0.06em;
   text-transform: uppercase;
-  color: var(--yellow-glow);
-  background: rgba(249, 168, 37, 0.08);
-  border: 1px solid rgba(249, 168, 37, 0.25);
+  /* color, background, border set dynamically by JS to match canary version */
   border-radius: 6px;
   padding: 0.3rem 0.65rem;
   white-space: nowrap;
-}
-
-.error-slider-row {
-  display: flex;
-  align-items: center;
-  gap: 1.25rem;
-}
-
-.error-slider {
-  flex: 1;
-  accent-color: var(--red-glow);
-  cursor: pointer;
-  height: 6px;
-}
-
-.error-val {
-  font-size: 1.5rem;
-  font-weight: 700;
-  font-variant-numeric: tabular-nums;
-  color: var(--text-muted);
-  min-width: 3.5rem;
-  text-align: right;
-  transition: color 0.2s ease;
 }
 
 /* ── Bubble stream ──────────────────────────────────────────────── */
@@ -217,16 +169,7 @@ main {
   animation: drift 3s linear forwards;
 }
 
-.bubble--blue {
-  background: radial-gradient(circle at 35% 35%, var(--blue-glow), var(--blue));
-  box-shadow: 0 0 10px rgba(25, 118, 210, 0.6);
-}
-
-.bubble--yellow {
-  background: radial-gradient(circle at 35% 35%, var(--yellow-glow), var(--yellow));
-  box-shadow: 0 0 10px rgba(249, 168, 37, 0.6);
-}
-
+/* Bubble fill/glow set via inline styles by JS; only error ring is static */
 .bubble--error {
   box-shadow: 0 0 0 2.5px var(--red-glow), 0 0 12px rgba(255, 82, 82, 0.55);
 }
@@ -286,8 +229,7 @@ main {
   font-variant-numeric: tabular-nums;
 }
 
-.stat-blue  .stat-value, .stat-blue  .stat-pct { color: var(--blue-glow); }
-.stat-yellow .stat-value, .stat-yellow .stat-pct { color: var(--yellow-glow); }
+/* Variant stat card colors set via inline styles by JS */
 .stat-total .stat-value { color: var(--text); }
 
 .stat-err {
@@ -313,8 +255,7 @@ main {
   min-width: 2px;
 }
 
-.bar-blue   { background: linear-gradient(90deg, var(--blue), var(--blue-glow)); }
-.bar-yellow { background: linear-gradient(90deg, var(--yellow), var(--yellow-glow)); }
+/* Bar segment gradients set via inline styles by JS */
 
 .bar-labels {
   display: flex;
@@ -329,8 +270,7 @@ main {
   font-variant-numeric: tabular-nums;
 }
 
-.bar-lbl-blue   { color: var(--blue-glow); }
-.bar-lbl-yellow { color: var(--yellow-glow); }
+/* Bar label colors set via inline styles by JS */
 
 /* ── Responsive ─────────────────────────────────────────────────── */
 
