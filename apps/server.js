@@ -11,8 +11,8 @@ const { register, Counter, Histogram, collectDefaultMetrics } = require('prom-cl
 
 const app = express();
 const PORT = process.env.PORT || 5000;
-const VARIANT = process.env.VARIANT || 'BLUE';
-const VERSION = process.env.VERSION || 'v1';
+const VARIANT = process.env.VARIANT || 'YELLOW';
+const VERSION = process.env.VERSION || 'v2';
 
 // --- Prometheus metrics ---
 collectDefaultMetrics({ labels: { variant: VARIANT } });

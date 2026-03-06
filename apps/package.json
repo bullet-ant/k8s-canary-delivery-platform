@@ -1,6 +1,6 @@
 {
   "name": "canary-demo-webapp",
-  "version": "1.0.0",
+  "version": "2.0.0",
   "description": "Live BLUE/YELLOW canary visibility demo",
   "main": "server.js",
   "scripts": {
