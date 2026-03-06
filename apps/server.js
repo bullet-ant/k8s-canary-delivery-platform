@@ -16,8 +16,8 @@ const { register, Counter, Histogram, collectDefaultMetrics } = require('prom-cl
 
 const app = express();
 const PORT = process.env.PORT || 5000;
-const VERSION = process.env.VERSION || 'v2';
-const ROLE    = process.env.ROLE    || 'canary';  // 'stable' | 'canary'
+const VERSION = process.env.VERSION || 'v1';
+const ROLE    = process.env.ROLE    || 'stable';  // 'stable' | 'canary'
 
 // --- Prometheus metrics ---
 collectDefaultMetrics({ labels: { version: VERSION } });
